@@ -1,0 +1,162 @@
+{% for post in posts %}
+    <div class="blog-post">
+        <h3>{{ post.title }}</h3>
+        <p>{{ post.content }}</p>
+        
+        <!-- دکمه لایک -->
+        <button class="like-btn" data-post-id="{{ post.id }}">
+            ❤️ <span class="like-count">{{ post.likes.count }}</span>
+        </button>
+
+        <!-- فرم کامنت -->
+        <div>
+            <input type="text" class="comment-input" placeholder="نظر خود را بنویسید..." data-post-id="{{ post.id }}">
+            <button class="comment-btn">ارسال</button>
+        </div>
+        <ul class="comments-list">
+            {% for comment in post.comments.all %}
+                <li class="comment-item">
+                    <strong>{{ comment.user.username }}</strong>: {{ comment.content }}
+                    <button class="reply-btn" data-comment-id="{{ comment.id }}">پاسخ</button>
+
+                    <!-- فرم ریپلای که مخفی است -->
+                    <div class="reply-box" style="display: none;">
+                        <input type="text" class="reply-input" placeholder="پاسخ خود را بنویسید..." data-comment-id="{{ comment.id }}">
+                        <button class="send-reply-btn">ارسال پاسخ</button>
+                    </div>
+
+                    <ul class="replies-list">
+                        {% for reply in comment.replies.all %}
+                            <li><strong>{{ reply.user.username }}</strong>: {{ reply.content }}</li>
+                        {% endfor %}
+                    </ul>
+                </li>
+            {% endfor %}
+        </ul>
+    </div>
+{% endfor %}
+
+<script>
+document.addEventListener("DOMContentLoaded", function() {
+    // لایک
+    document.querySelectorAll(".like-btn").forEach(button => {
+        button.addEventListener("click", function() {
+            let postId = this.getAttribute("data-post-id");
+            let likeCountSpan = this.querySelector(".like-count");
+
+            fetch(`/like/${postId}/`, {
+                method: "POST",
+                headers: {
+                    "X-CSRFToken": "{{ csrf_token }}",
+                    "X-Requested-With": "XMLHttpRequest"
+                }
+            })
+            .then(response => response.json())
+            .then(data => {
+                this.classList.toggle("liked", data.liked);
+                likeCountSpan.textContent = data.like_count;
+            });
+        });
+    });
+
+    // کامنت
+    document.querySelectorAll(".comment-btn").forEach(button => {
+        button.addEventListener("click", function() {
+            let input = this.previousElementSibling;
+            let postId = input.getAttribute("data-post-id");
+            let content = input.value;
+
+            fetch(`/comment/${postId}/`, {
+                method: "POST",
+                headers: {
+                    "X-CSRFToken": "{{ csrf_token }}",
+                    "X-Requested-With": "XMLHttpRequest"
+                },
+                body: new URLSearchParams({ 'content': content })
+            })
+            .then(response => response.json())
+            .then(data => {
+                let commentList = this.parentElement.nextElementSibling;
+                let newComment = document.createElement("li");
+                newComment.classList.add("comment-item");
+                newComment.innerHTML = `
+                    <strong>${data.user}</strong>: ${data.content}
+                    <button class="reply-btn" data-comment-id="${data.comment_id}">پاسخ</button>
+                    <div class="reply-box" style="display: none;">
+                        <input type="text" class="reply-input" placeholder="پاسخ خود را بنویسید..." data-comment-id="${data.comment_id}">
+                        <button class="send-reply-btn">ارسال پاسخ</button>
+                    </div>
+                    <ul class="replies-list"></ul>
+                `;
+                commentList.appendChild(newComment);
+                input.value = "";
+            });
+        });
+    });
+
+    // باز کردن فرم ریپلای
+    document.addEventListener("click", function(event) {
+        if (event.target.classList.contains("reply-btn")) {
+            let replyBox = event.target.nextElementSibling;
+            replyBox.style.display = replyBox.style.display === "none" ? "block" : "none";
+        }
+    });
+
+    // ارسال ریپلای
+    document.addEventListener("click", function(event) {
+        if (event.target.classList.contains("send-reply-btn")) {
+            let input = event.target.previousElementSibling;
+            let commentId = input.getAttribute("data-comment-id");
+            let content = input.value;
+            let replyList = event.target.parentElement.nextElementSibling;
+
+            fetch(`/reply/${commentId}/`, {
+                method: "POST",
+                headers: {
+                    "X-CSRFToken": "{{ csrf_token }}",
+                    "X-Requested-With": "XMLHttpRequest"
+                },
+                body: new URLSearchParams({ 'content': content })
+            })
+            .then(response => response.json())
+            .then(data => {
+                let newReply = document.createElement("li");
+                newReply.innerHTML = `<strong>${data.user}</strong>: ${data.content}`;
+                replyList.appendChild(newReply);
+                input.value = "";
+                event.target.parentElement.style.display = "none";
+            });
+        }
+    });
+});
+</script>
+
+<style>
+    .like-btn {
+        cursor: pointer;
+        border: none;
+        background: none;
+        font-size: 18px;
+    }
+    .liked {
+        color: red;
+    }
+    .reply-box {
+        margin-top: 5px;
+    }
+    .reply-input {
+        width: 80%;
+        padding: 5px;
+    }
+    .send-reply-btn {
+        padding: 5px 10px;
+        cursor: pointer;
+        background-color: #008CBA;
+        color: white;
+        border: none;
+        border-radius: 4px;
+    }
+    .send-reply-btn:hover {
+        background-color: #005f75;
+    }
+</style>
